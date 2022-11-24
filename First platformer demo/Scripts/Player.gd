@@ -3,7 +3,7 @@ extends KinematicBody2D
 enum {IDLE, RUN, AIR, WALL_SLIDE, DASH}
 
 const MAX_SPEED = 200
-const ACCELERATION = 1000
+const ACCELERATION = 1500
 const GRAVITY = 1000
 const JUMP_STRENGHT = -410
 
@@ -20,6 +20,7 @@ var ghost_scene = preload("res://Scenes/DashGhost.tscn")
 
 onready var animationplayer = $AnimationPlayer
 onready var ghosttimer = $GhostTimer
+onready var coyotetimer = $CoyoteTimer
 
 func _physics_process(delta: float) -> void:
 	match state:
@@ -34,7 +35,7 @@ func _physics_process(delta: float) -> void:
 		DASH:
 			_dash_state(delta)
 
-#BASIC
+#Help functions
 func _apply_basic_movement(delta) -> void:
 	if direction.x != 0:
 		velocity = velocity.move_toward(direction*MAX_SPEED, ACCELERATION*delta)
@@ -60,6 +61,14 @@ func _add_dash_ghost() -> void:
 	ghost.flip_h = $Sprite.flip_h
 	get_tree().get_root().add_child(ghost)
 
+func _air_movement(delta) -> void:
+	velocity.y = velocity.y + GRAVITY * delta if velocity.y + GRAVITY * delta < 500 else 500 
+	direction.x = _get_input_x_update_direction()
+	if direction.x != 0:
+		velocity.x = move_toward(velocity.x, direction.x * MAX_SPEED, ACCELERATION*delta)
+	else:
+		velocity.x = move_toward(velocity.x, 0, ACCELERATION * delta)
+	velocity = move_and_slide(velocity, Vector2.UP)
 
 #STATES:
 func _idle_state(delta) -> void:
@@ -76,12 +85,11 @@ func _idle_state(delta) -> void:
 	
 	if not is_on_floor():
 		state = AIR
-		can_jump = false
+		coyotetimer.start()
 		$Sprite.frame = 16
 		return
 	if velocity.x != 0:
-		state = RUN
-		animationplayer.play("Run")
+		_enter_run_state()
 		return
 		
 func _run_state(delta) -> void:
@@ -104,18 +112,14 @@ func _run_state(delta) -> void:
 		return
 
 func _air_state(delta) -> void:
-	velocity.y = velocity.y + GRAVITY * delta if velocity.y + GRAVITY * delta < 500 else 500 
-	direction.x = _get_input_x_update_direction()
-	
+	_air_movement(delta)
 	if Input.is_action_just_pressed("dash") and can_dash:
 		_enter_dash_state()
 		return
-		
-	if direction.x != 0:
-		velocity.x = move_toward(velocity.x, direction.x * MAX_SPEED, ACCELERATION*delta)
-	else:
-		velocity.x = move_toward(velocity.x, 0, ACCELERATION * delta)
-	velocity = move_and_slide(velocity, Vector2.UP)
+	elif Input.is_action_just_pressed("jump") and can_jump:
+		velocity.y = JUMP_STRENGHT
+		can_jump = false
+		coyotetimer.stop()
 	
 	if is_on_floor():
 		_enter_idle_state()
@@ -161,6 +165,7 @@ func _dash_state(delta):
 	if is_on_wall() and velocity.y <= 0:
 		_enter_wall_slide_state()
 		$DashTimer.stop()
+		ghosttimer.stop()
 		can_dash = true
 		return
 		
@@ -169,13 +174,16 @@ func _dash_state(delta):
 func _on_DashTimer_timeout():
 	_enter_idle_state()
 	velocity = direction * MAX_SPEED
-	yield(get_tree().create_timer(1.0), "timeout")
+	yield(get_tree().create_timer(0.5), "timeout")
 	can_dash = true
 
 func _on_GhostTimer_timeout():
 	_add_dash_ghost()
 	if $DashTimer.time_left != 0:
 		ghosttimer.start()
+
+func _on_CoyoteTimer_timeout():
+	can_jump = false
 
 
 #Enter states
@@ -204,6 +212,10 @@ func _enter_dash_state() -> void:
 func _enter_air_state(jump: bool) -> void:
 	if jump:
 		velocity.y = JUMP_STRENGHT
-	can_jump = false
 	state = AIR
 	animationplayer.play("Jump")
+	coyotetimer.start()
+
+func _enter_run_state() -> void:
+	state = RUN
+	animationplayer.play("Run")

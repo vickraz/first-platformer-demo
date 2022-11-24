@@ -1,7 +1,31 @@
-[gd_scene load_steps=5 format=2]
+[gd_scene load_steps=7 format=2]
 
 [ext_resource path="res://Player/adventurer-1.3-Sheet.png" type="Texture" id=1]
 [ext_resource path="res://Scripts/DashGhost.gd" type="Script" id=2]
+
+[sub_resource type="Shader" id=3]
+code = "
+
+shader_type canvas_item;
+
+uniform bool whiten = false;
+uniform float mix_weight = 1.0;
+
+void fragment() {
+	vec4 texture_color = texture(TEXTURE, UV);
+	if (whiten) {
+		vec3 white = vec3(1,1,1);
+		vec3 whitened_texture_rgb = mix(texture_color.rgb, white, mix_weight);
+		COLOR = vec4(whitened_texture_rgb, texture_color.a);
+	} else {
+		COLOR = texture_color
+	}
+}"
+
+[sub_resource type="ShaderMaterial" id=4]
+shader = SubResource( 3 )
+shader_param/whiten = true
+shader_param/mix_weight = 1.0
 
 [sub_resource type="Animation" id=1]
 resource_name = "Fade"
@@ -36,6 +60,8 @@ tracks/0/keys = {
 }
 
 [node name="DashGhost" type="Sprite"]
+material = SubResource( 4 )
+z_index = -1
 texture = ExtResource( 1 )
 hframes = 8
 vframes = 12

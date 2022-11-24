@@ -130,6 +130,7 @@ points = PoolVector2Array( 0, 0, 32, 32, 0, 32 )
 [node name="ParallaxBackground" parent="." instance=ExtResource( 2 )]
 
 [node name="TileMap" type="TileMap" parent="."]
+z_index = -1
 tile_set = ExtResource( 1 )
 cell_size = Vector2( 16, 16 )
 format = 1
@@ -137,6 +138,7 @@ tile_data = PoolIntArray( 65535, 14, 0, 131071, 14, 0, 196607, 14, 0, 262143, 14
 
 [node name="TileMap2" type="TileMap" parent="."]
 scale = Vector2( 0.5, 0.5 )
+z_index = -1
 tile_set = SubResource( 1 )
 cell_size = Vector2( 16, 16 )
 format = 1

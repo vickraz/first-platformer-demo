@@ -126,8 +126,13 @@ wait_time = 0.3
 one_shot = true
 
 [node name="GhostTimer" type="Timer" parent="."]
-wait_time = 0.05
+wait_time = 0.04
+one_shot = true
+
+[node name="CoyoteTimer" type="Timer" parent="."]
+wait_time = 0.1
 one_shot = true
 
 [connection signal="timeout" from="DashTimer" to="." method="_on_DashTimer_timeout"]
 [connection signal="timeout" from="GhostTimer" to="." method="_on_GhostTimer_timeout"]
+[connection signal="timeout" from="CoyoteTimer" to="." method="_on_CoyoteTimer_timeout"]
