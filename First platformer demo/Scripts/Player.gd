@@ -34,7 +34,7 @@ func _physics_process(delta: float) -> void:
 		DASH:
 			_dash_state(delta)
 
-
+#BASIC
 func _apply_basic_movement(delta) -> void:
 	if direction.x != 0:
 		velocity = velocity.move_toward(direction*MAX_SPEED, ACCELERATION*delta)
@@ -60,22 +60,16 @@ func _add_dash_ghost() -> void:
 	ghost.flip_h = $Sprite.flip_h
 	get_tree().get_root().add_child(ghost)
 
+
+#STATES:
 func _idle_state(delta) -> void:
 	direction.x = _get_input_x_update_direction()
 	if Input.is_action_just_pressed("jump") and can_jump:
-		velocity.y = JUMP_STRENGHT
-		can_jump = false
-		state = AIR
-		animationplayer.play("Jump")
+		_enter_air_state(true)
 		return
 	
 	if Input.is_action_just_pressed("dash") and can_dash:
-		animationplayer.play("Jump")
-		state = DASH
-		can_dash = false
-		$DashTimer.start(0.25)
-		direction = Input.get_vector("move_left", "move_right", "ui_up", "ui_down")
-		ghosttimer.start()
+		_enter_dash_state()
 		return
 		
 	_apply_basic_movement(delta)
@@ -93,31 +87,20 @@ func _idle_state(delta) -> void:
 func _run_state(delta) -> void:
 	direction.x = _get_input_x_update_direction()
 	if Input.is_action_just_pressed("jump") and can_jump:
-		velocity.y = JUMP_STRENGHT
-		can_jump = false
-		state = AIR
-		animationplayer.play("Jump")
+		_enter_air_state(true)
 		return
 	
 	elif Input.is_action_just_pressed("dash") and can_dash:
-		animationplayer.play("Jump")
-		state = DASH
-		can_dash = false
-		$DashTimer.start(0.25)
-		ghosttimer.start()
-		direction = Input.get_vector("move_left", "move_right", "ui_up", "ui_down")
+		_enter_dash_state()
 		return
 	
-
 	_apply_basic_movement(delta)
 	
 	if not is_on_floor():
-		state = AIR
-		can_jump = false
-		animationplayer.play("Jump")
+		_enter_air_state(false)
+		return
 	elif velocity.length() == 0 or is_on_wall():
-		state = IDLE
-		animationplayer.play("Idle")
+		_enter_idle_state()
 		return
 
 func _air_state(delta) -> void:
@@ -125,12 +108,7 @@ func _air_state(delta) -> void:
 	direction.x = _get_input_x_update_direction()
 	
 	if Input.is_action_just_pressed("dash") and can_dash:
-		animationplayer.play("Jump")
-		state = DASH
-		can_dash = false
-		$DashTimer.start(0.25)
-		ghosttimer.start()
-		direction = Input.get_vector("move_left", "move_right", "ui_up", "ui_down")
+		_enter_dash_state()
 		return
 		
 	if direction.x != 0:
@@ -140,14 +118,11 @@ func _air_state(delta) -> void:
 	velocity = move_and_slide(velocity, Vector2.UP)
 	
 	if is_on_floor():
-		state = IDLE
-		animationplayer.play("Idle")
-		can_jump = true
+		_enter_idle_state()
 		return
+		
 	elif is_on_wall() and velocity.y > 0:
-		state = WALL_SLIDE
-		animationplayer.play("Wall_slide")
-		can_jump = true
+		_enter_wall_slide_state()
 		return
 	
 func _wall_slide_state(delta) -> void:
@@ -169,9 +144,7 @@ func _wall_slide_state(delta) -> void:
 	velocity = move_and_slide(velocity, Vector2.UP)
 	
 	if is_on_floor():
-		state = IDLE
-		animationplayer.play("Idle")
-		can_jump = true
+		_enter_idle_state()
 		return
 	elif not is_on_wall():
 		state = AIR
@@ -186,24 +159,51 @@ func _dash_state(delta):
 	velocity = move_and_slide(velocity, Vector2.UP)
 	
 	if is_on_wall() and velocity.y <= 0:
-		state = WALL_SLIDE
-		animationplayer.play("Wall_slide")
-		can_jump = true
+		_enter_wall_slide_state()
 		$DashTimer.stop()
 		can_dash = true
 		return
 		
 
-
+#SIGNALS
 func _on_DashTimer_timeout():
-	state = IDLE
-	can_jump = true
+	_enter_idle_state()
 	velocity = direction * MAX_SPEED
 	yield(get_tree().create_timer(1.0), "timeout")
 	can_dash = true
-
 
 func _on_GhostTimer_timeout():
 	_add_dash_ghost()
 	if $DashTimer.time_left != 0:
 		ghosttimer.start()
+
+
+#Enter states
+func _enter_idle_state() -> void:
+	state = IDLE
+	animationplayer.play("Idle")
+	can_jump = true
+
+func _enter_wall_slide_state() -> void:
+	state = WALL_SLIDE
+	animationplayer.play("Wall_slide")
+	can_jump = true
+
+func _enter_dash_state() -> void:
+	direction = Input.get_vector("move_left", "move_right", "ui_up", "ui_down")
+	if state == IDLE and direction == Vector2.DOWN:
+		return
+	elif direction == Vector2.ZERO:
+		direction.x = 1 if direction_x == "RIGHT" else -1
+	animationplayer.play("Jump")
+	state = DASH
+	can_dash = false
+	$DashTimer.start(0.25)
+	ghosttimer.start()
+
+func _enter_air_state(jump: bool) -> void:
+	if jump:
+		velocity.y = JUMP_STRENGHT
+	can_jump = false
+	state = AIR
+	animationplayer.play("Jump")
