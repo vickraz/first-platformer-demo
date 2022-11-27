@@ -1,7 +1,8 @@
 extends Sprite
 
-	
-	
 
-func _on_Timer_timeout():
+
+
+
+func _on_AnimationPlayer_animation_finished(_anim_name):
 	queue_free()
