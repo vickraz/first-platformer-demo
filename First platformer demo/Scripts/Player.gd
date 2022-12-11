@@ -1,15 +1,19 @@
 extends KinematicBody2D
 
+class_name Player
+
 enum {IDLE, RUN, AIR, WALL_SLIDE, DASH, SLIDE}
 
 const MAX_SPEED = 200
 const ACCELERATION = 1500
 const GRAVITY = 1000
 const JUMP_STRENGHT = -410
+var snap = Vector2(0, 5)
 
 var direction_x = "RIGHT"
 var velocity := Vector2.ZERO
 var direction := Vector2.ZERO
+var follow_slope_const = -PI / 4
 
 var state = IDLE
 var ghosttime := 0.0
@@ -25,6 +29,7 @@ onready var coyotetimer = $CoyoteTimer
 onready var jumpbuffertimer = $JumpBufferTimer
 onready var dashtimer = $DashTimer
 onready var particlespawn = $ParticleSpawn
+onready var wallCheck = $WallCheck
 
 
 func _physics_process(delta: float) -> void:
@@ -45,12 +50,16 @@ func _physics_process(delta: float) -> void:
 #Help functions
 func _apply_basic_movement(delta) -> void:
 	if direction.x != 0:
-		velocity = velocity.move_toward(direction*MAX_SPEED, ACCELERATION*delta)
+		if not _on_slope():
+			velocity = velocity.move_toward(direction*MAX_SPEED, ACCELERATION*delta)
+		else:
+			velocity = velocity.move_toward(direction.rotated(follow_slope_const) * MAX_SPEED* 0.9, ACCELERATION*delta)
 	else:
 		velocity = velocity.move_toward(Vector2.ZERO, ACCELERATION*delta)
 	
 	velocity.y += GRAVITY*delta
-	velocity = move_and_slide(velocity, Vector2.UP)
+	velocity = move_and_slide_with_snap(velocity, snap, Vector2.UP,
+	true, 4, deg2rad(50), true)
 
 func _get_input_x_update_direction() -> float:
 	var input_x = Input.get_axis("move_left", "move_right")
@@ -59,6 +68,7 @@ func _get_input_x_update_direction() -> float:
 	elif input_x < 0:
 		direction_x = "LEFT"
 	$Sprite.flip_h = direction_x != "RIGHT"
+	wallCheck.rotation_degrees = 90 if direction_x != "RIGHT" else -90
 	return input_x
 
 func _add_dash_ghost() -> void:
@@ -96,7 +106,26 @@ func _wall_movement(delta) -> void:
 	else:
 		animationplayer.play("Wall_slide")
 	
-	velocity = move_and_slide(velocity, Vector2.UP)
+	velocity = move_and_slide_with_snap(velocity, snap, Vector2.UP)
+
+func _on_wall() -> bool:
+	wallCheck.force_raycast_update()
+	if wallCheck.is_colliding():
+		var norm = wallCheck.get_collision_normal().normalized()
+		return norm == Vector2(1, 0) or norm == Vector2(-1, 0)
+	return false
+
+func _on_slope() -> bool:
+	wallCheck.force_raycast_update()
+	if wallCheck.is_colliding():
+		var norm = wallCheck.get_collision_normal().normalized()
+		if -5*PI/6 < norm.angle() and norm.angle() < -4*PI/6:
+			follow_slope_const = -PI/4
+			return true
+		elif norm.angle() > -PI/3 and norm.angle() < -PI/6:
+			follow_slope_const = PI/4
+			return true
+	return false
 
 #STATES:
 func _idle_state(delta) -> void:
@@ -114,7 +143,7 @@ func _idle_state(delta) -> void:
 	if not is_on_floor():
 		_enter_air_state(false)
 		return
-	if velocity.x != 0:
+	elif velocity.x != 0 and direction.x != 0:
 		_enter_run_state()
 		return
 		
@@ -133,7 +162,7 @@ func _run_state(delta) -> void:
 	if not is_on_floor():
 		_enter_air_state(false)
 		return
-	elif velocity.length() == 0 or is_on_wall():
+	elif direction.x == 0 or is_on_wall():
 		_enter_idle_state()
 		return
 	elif Input.is_action_just_pressed("slide"):
