@@ -12,6 +12,7 @@ var snap = Vector2(0, 5)
 
 var direction_x = "RIGHT"
 var velocity := Vector2.ZERO
+var previous_velocity := Vector2.ZERO
 var direction := Vector2.ZERO
 var follow_slope_const = -PI / 4
 
@@ -20,6 +21,7 @@ var ghosttime := 0.0
 
 var can_jump := true
 var can_dash := true
+var just_hit_groud := false
 
 var ghost_scene = preload("res://Scenes/DashGhost.tscn")
 var particle_scene = preload("res://Scenes/GhostParticles.tscn")
@@ -30,9 +32,11 @@ onready var jumpbuffertimer = $JumpBufferTimer
 onready var dashtimer = $DashTimer
 onready var particlespawn = $ParticleSpawn
 onready var wallCheck = $WallCheck
+onready var sprite = $Sprite
 
 
 func _physics_process(delta: float) -> void:
+	previous_velocity = velocity
 	match state:
 		IDLE:
 			_idle_state(delta)
@@ -46,6 +50,8 @@ func _physics_process(delta: float) -> void:
 			_dash_state(delta)
 		SLIDE:
 			_slide_state(delta)
+		
+	_squash_and_strech(velocity)
 
 #Help functions
 func _apply_basic_movement(delta) -> void:
@@ -53,7 +59,7 @@ func _apply_basic_movement(delta) -> void:
 		if not _on_slope():
 			velocity = velocity.move_toward(direction*MAX_SPEED, ACCELERATION*delta)
 		else:
-			velocity = velocity.move_toward(direction.rotated(follow_slope_const) * MAX_SPEED* 0.9, ACCELERATION*delta)
+			velocity = velocity.move_toward(direction.rotated(follow_slope_const)*MAX_SPEED, ACCELERATION*delta)
 	else:
 		velocity = velocity.move_toward(Vector2.ZERO, ACCELERATION*delta)
 	
@@ -114,6 +120,21 @@ func _on_wall() -> bool:
 		var norm = wallCheck.get_collision_normal().normalized()
 		return norm == Vector2(1, 0) or norm == Vector2(-1, 0)
 	return false
+
+func _squash_and_strech(velocity: Vector2) -> void:
+	if not is_on_floor():
+		just_hit_groud = false
+		sprite.scale.y = range_lerp(abs(velocity.y), 0, 500, 1, 1.75)
+		sprite.scale.x = range_lerp(abs(velocity.y), 0, 500, 1.25, 0.75)
+	elif not just_hit_groud and is_on_floor():
+		just_hit_groud = true
+		sprite.scale.y = range_lerp(abs(previous_velocity.y), 0, 500, 0.8, 0.6)
+		sprite.scale.x = range_lerp(abs(previous_velocity.y), 0, 500, 1.1, 1.5)
+		
+	else:
+		sprite.scale.y = lerp(sprite.scale.y, 1, 0.2)
+		sprite.scale.x = lerp(sprite.scale.x, 1, 0.2)
+		
 
 func _on_slope() -> bool:
 	wallCheck.force_raycast_update()
@@ -295,6 +316,7 @@ func _enter_air_state(jump: bool) -> void:
 		animationplayer.play("Jump")
 	coyotetimer.start()
 	state = AIR
+	
 
 func _enter_run_state() -> void:
 	state = RUN
